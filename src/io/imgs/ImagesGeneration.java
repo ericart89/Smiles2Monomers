@@ -34,7 +34,8 @@ public class ImagesGeneration {
 		PictureGenerator pg = new PictureGenerator();
 		
 		for (Monomer m : monoDB.getObjects()) {
-			File monoImg = new File(monoImgsDirectory.getPath() + "/" + m.getName() + ".png");
+			String monomerName = m.getName().replace("(","").replace(")","").replace(":","");
+			File monoImg = new File(monoImgsDirectory.getPath() + "/" + monomerName + ".png");
 			if (!monoImg.exists())
 				pg.createPNG(
 						m.getMolecule(),

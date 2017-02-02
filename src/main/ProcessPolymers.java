@@ -36,7 +36,7 @@ public class ProcessPolymers {
 		String outfolderName = "results/";
 		String imgsFoldername = "images/";
 		boolean html = false;
-		boolean zip = false;
+		boolean zip = true;
 		
 		String serialFolder = "data/serials/";
 		
