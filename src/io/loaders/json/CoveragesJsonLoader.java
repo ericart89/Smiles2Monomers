@@ -5,6 +5,8 @@ import java.util.Set;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+
+import org.openscience.cdk.exception.CDKException;
 import org.openscience.cdk.interfaces.IAtom;
 import org.openscience.cdk.interfaces.IBond;
 import org.openscience.cdk.interfaces.IMolecule;
@@ -21,6 +23,7 @@ import model.Residue;
 import model.graph.ContractedGraph;
 import model.graph.MonomerGraph;
 import model.graph.MonomerGraph.MonomerLinks;
+import org.openscience.cdk.layout.StructureDiagramGenerator;
 
 public class CoveragesJsonLoader extends
 		AbstractJsonLoader<CoveragesDB, Coverage> {
@@ -107,10 +110,10 @@ public class CoveragesJsonLoader extends
 		obj.put("peptide", new Integer(cov.getChemicalObject().getId()));
 		obj.put("peptideName", cov.getChemicalObject().getName());
 		obj.put("atomic_graph", this.getJSONMatches(cov));
-		
 		obj.put("monomeric_graph", this.getJSONGraph(cov));
-		obj.put("coverage", cov.getCoverageRatio());
-		
+		obj.put("ratio", cov.getCoverageRatio());
+		obj.put("correctness", cov.getCorrectness(families));
+
 		array.add(obj);
 		return array;
 	}
@@ -124,26 +127,49 @@ public class CoveragesJsonLoader extends
 		JSONArray bonds = new JSONArray();
 		graph.put("bonds", bonds);
 		
-		Set<IBond> usedBonds = new HashSet<IBond>();
+		Set<IBond> usedBonds = new HashSet<>();
+
+		StructureDiagramGenerator sdg = new StructureDiagramGenerator();
+		IMolecule mol = cov.getChemicalObject().getMolecule();
+
+		//calculate coordinates
+		try {
+			sdg.setMolecule(mol);
+			sdg.generateCoordinates();
+			mol = sdg.getMolecule();
+		} catch (CDKException e) {
+			//e.printStackTrace();
+			throw new IllegalStateException("The coordiantes couldn't be calculated");
+		}
+
 		for (Match match : cov.getUsedMatches()) {
 			// Atoms
 			for (int a : match.getAtoms()) {
 				JSONObject atom = new JSONObject();
+
 				// CDK informations
 				atom.put("cdk_idx", a);
 				// Atom informations
-				IAtom ia = cov.getChemicalObject().getMolecule().getAtom(a);
+				IAtom ia = mol.getAtom(a);
+				//Coordinates informations
+				JSONObject coordinates = new JSONObject();
+				coordinates.put("x",ia.getPoint2d().x);
+				coordinates.put("y",ia.getPoint2d().y);
+				atom.put("coordiantes",coordinates);
+
 				atom.put("name", ia.getSymbol());
 				atom.put("hydrogens", match.getHydrogensFrom(a));
 				// Residue informations
 				atom.put("res", match.getResidue().getId());
-				
+
+				//ia.getPoint2d();
+
 				atoms.add(atom);
 			}
 			
 			// Bonds
 			for (int b : match.getBonds()) {
-				IBond ib = cov.getChemicalObject().getMolecule().getBond(b);
+				IBond ib = mol.getBond(b);
 				usedBonds.add(ib);
 				JSONObject bond = new JSONObject();
 				
@@ -153,7 +179,7 @@ public class CoveragesJsonLoader extends
 				// atoms linked
 				JSONArray linkedAtoms = new JSONArray();
 				for (IAtom a : ib.atoms()) {
-					linkedAtoms.add(cov.getChemicalObject().getMolecule().getAtomNumber(a));
+					linkedAtoms.add(mol.getAtomNumber(a));
 				}
 				bond.put("arity", ib.getOrder().numeric());
 				bond.put("atoms", linkedAtoms);
@@ -163,7 +189,7 @@ public class CoveragesJsonLoader extends
 			}
 		}
 		
-		IMolecule mol = cov.getChemicalObject().getMolecule();
+
 		for (IBond ib : mol.bonds()) {
 			if (!usedBonds.contains(ib)) {
 				JSONObject bond = new JSONObject();
